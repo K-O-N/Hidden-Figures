@@ -1,0 +1,199 @@
+---
+title: "Hidden Figures: Uncovering Ethnic Pay Gap - Investigative Analysis"
+format: html
+editor: visual
+toc: true
+code-tools:
+  source: true
+  toggle: true
+  caption: "Code"
+execute:
+  echo: false
+---
+
+Author: Kate O. Nwankwo
+
+## Introduction
+
+Ethnic pay gap has become a critical lens through which social scientists, policymakers, and advocates evaluate systemic inequality. This study aims to investigate the ethnic pay gap in England, focusing on 2021 Household Census data. The data contains information on different ethnicities, their income as of 2021 in British Pounds, age, highest education, marital status, number of persons in the household, and housing condition. To begin this analysis, an exploratory analysis is done to understand the data.
+
+```{r setup, include=FALSE}
+# Set global options - Remove all warning signs
+options(warn = -1)
+options(dplyr.summarise.inform = FALSE)
+```
+
+```{r}
+#| include: false
+library(tidyverse)
+library(gridExtra)
+library(dplyr)
+# Load the data
+data <- read_csv("C:/Users/PC/Downloads/WLV/7CS034UM1_Data_Science/Assessment/data.csv", na = c("NA", ""), show_col_types = FALSE)
+```
+
+## Data Tidying and Transformation
+
+The first few rows of the data show the data required to the wrangled; put into the best format suitable for analysis and good understanding. Some data cleaning done to the dataset include.
+
+-   Columns rename: Some columns in the dataset were renamed to capture the actual meaning of input in the variable. Example Income variable was renamed from INC, Female column was renamed to gender, Highest Ed was renamed to Highest Education, and Eth was renamed to Ethnicity.
+-   Data Type: Columns like Income and Age had the datatype double precision floating point (dbl) these were converted to integer datatypes.
+-   Records Encoding: Records in the gender column were renamed; 0 to female and 1 to male.
+
+```{r}
+#| include: false
+# Order Education levels and Marital Status
+status_levels <- c("Never married", "married", "Separated", "Divorced", "Widowed")
+education_levels <- c("Less than Secondary School", "Secondary School", "Some HE", "Bachelors Degree", "Masters or higher")
+
+data <- data %>%  mutate(
+    Female := case_when( Female == 0 ~ "female", Female == 1 ~ "male", TRUE ~ "other"),
+    H8 := case_when( H8 == 0 ~ "yes", H8 == 1 ~ "no", TRUE ~ " "),
+    INC = as.integer(INC),  Age = as.integer(Age),
+    `Highest Ed` = factor(`Highest Ed`, levels = education_levels), Mar_Stat = factor(Mar_Stat, levels = status_levels)) %>%
+    rename(Gender = Female, Income = INC, Highest_Education = `Highest Ed`, Ethnicity = Eth, Marital_Status = Mar_Stat)
+summary(data)
+```
+
+### Statistcal Summary
+
+The summary of the data gives a quick overview of the entire dataset. This shows the marital status, gender, H8, ethnicity, and highest education columns are characters. It shows the minimum age in the data is 0, the average age is 35, and the maximum age is 93. It also shows the minimum income is 0 while the maximum income is 720,000. This might suggest some skewness in the dataset.
+
+## Exploratory Data Analysis
+
+To further investigate the data and get hidden insights, exploratory data analysis is carried out to discover hidden stories, trends, and patterns in the data.
+
+### Univariate Analysis
+
+```{r}
+# Plot  Income and Age Distribution
+p1 <- ggplot(data = data) +
+  geom_histogram(binwidth = 2, mapping = aes(x = Age, fill = Gender)) + labs(title = "Age Distribution", x = "Age", y = "Frequency" )
+
+p2 <- ggplot(data = data) +
+  geom_histogram(binwidth = 0.1, mapping = aes(x = log10(Income), fill = Gender)) + labs(title = "Income Distribution", x = "Income", y = "Frequency")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+The histogram plot of age shows that the distribution of age is unimodal and skewed to the right. Modality describes the number of peaks seen on a distribution plot (Hui, 2018). Skewness is a statistic that quantifies a distribution's degree of symmetry and deviation from the normal distribution. Thus, the distribution does not follow a normal distribution because a higher population of individuals in the data are drawn to the right.
+
+The histogram of income shows the distribution is bimodal (with only one peak) and is skewed to the right. This was indicated in the summary; the median is less than the mean indicating skewness of the dataset and presence of outliers. Due to the skewness of the income distribution, it was difficult to visualize and see the income distribution. Hence, the income histogram plot was made by applying a logarithmic transformation (in this case, base-10 logarithm) to the income data. This helped to compress the high values and spread out the lower values thereby making the current plot more symmetrical.
+
+```{r}
+# Plot Ethnic Population in the Data and Educational Level Distribution
+p1 <- ggplot(data = data) +
+  geom_bar(mapping = aes(y = reorder(Ethnicity, Ethnicity, FUN = length)), fill= "lightcoral")  +
+  labs(title = "Ethnic Population", x = "Count", y = "Ethnicity") + theme(legend.position = "none")
+
+p2 <- ggplot(data = data %>% drop_na(Highest_Education)) +
+  geom_bar(mapping = aes(y = reorder(Highest_Education, Highest_Education, FUN = length)), fill= "lightcoral")  +
+  labs(title = "Educational Level", x = "Educational Level", y = "Count") + theme(legend.position = "none")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+The ethnic population plot shows that whites are the highest-represented group, comprising 69% of the entire data, followed by Asians 12.94%, and Blacks 11.47%. The least represented groups are Hispanic and Other groups comprising 3.4% and 3.1% respectively. The Educational level distribution shows the majority of persons in the data have less than secondary school education and very few people have a master's degree.
+
+### Bivariate and Multivariate Analysis
+
+```{r}
+# Scatter plot income Vs Age
+ggplot(data = data, mapping = aes(x = Age, y = log10(Income))) +
+  geom_point(mapping = aes(color = Marital_Status, shape = Marital_Status)) + geom_smooth(formula = y ~ x, method = "lm") + 
+  labs(title = "Relationship Bewteen Age and Income", x = "Age", y = "Income (log10)") + theme_minimal()
+```
+
+The scatter plot of income versus age shows that there is a positive correlation between income and age. Income increases with age. Unmarried people are mostly between the ages of 15 to 37, while married people are mostly between the ages of 25 to 75.
+
+```{r}
+# Filter data with complete income and education and plot a heatmap
+ggplot(data = data[complete.cases(data), ]) +
+  geom_tile(mapping = aes(x = Ethnicity, y = Highest_Education, fill = log10(Income))) + 
+  labs(title = "Relationship Bewteen Income, Highest Education, and Ethnicity", x = "Ethnicity", y = "Education Level") + theme_minimal()
+```
+
+To further explore relationships between the variables in the dataset, the heat map of Age, Income, and Education was plotted to show the relationship between these variables. The heatmap shows that there is a strong positive correlation between income and level of education. From less than a secondary education to a master's degree, the colour code gets lighter indicating increased income with a higher level of education. This is obvious for the white population. Asian groups with a bachelor’s degree make the highest money in that group followed by Asians with a master's degree, Some HE, Secondary school, and the least is Less than secondary school. While Hispanics with a master’s degree make the highest money for their group.
+
+## Explore Ethnic Pay Gaps
+
+### Average Income by Ethnic Groups
+
+```{r}
+# Average Income By Ethnicity
+ggplot(data = data) +
+  geom_boxplot(mapping = aes(x = Ethnicity, y = log10(Income), fill = Ethnicity), outlier.shape = NA) +
+  labs(title = "Income Distribution by Ethnicity", x = "Ethnicity", y = "Income (log10)") + theme_minimal() + theme(legend.position = "none")
+```
+
+The boxplot shows the average income earned across all ethnic groups in the data. The boxplot was made with Income on a logarithmic scale due to skewness. The average income for Whites is 30K, Hispanics 28K, Blacks 20K, Others 19K, and Asians 16k. That implies that Asians have an average income of 46% less than whites, 41% less than Hispanics, 17% less than Blacks, and 14% less than others. This poses some important questions.
+
+-   Is this pay gap prevalent across same age groups?
+-   Does this pay gap apply to people with the same educational qualification?
+-   What is the educational qualification for the ethnic groups represented?
+-   **Can we conclusively say there is a pay gap due to the observed difference**?
+
+### Income By Age Groups
+
+```{r}
+# Make an age group
+data <- data %>% mutate(AgeGroup = cut(Age, breaks = c(0, 20, 40, 60, 80, 100), 
+                        labels = c("0-20", "21-40", "41-60", "61-80", "81-100"), right = FALSE))
+# Calculate the average income for each age group and ethnicity
+data_summary <- data %>% group_by(AgeGroup, Ethnicity) %>% summarize(AvgIncome = mean(x=Income, na.rm=TRUE))
+
+# Plot the average income by age group
+ggplot(data_summary, aes(x = AgeGroup, y = AvgIncome, color = Ethnicity, group = Ethnicity)) + geom_line() + geom_point() +
+  labs(x = "Age Group", y = "Average Income", title = "Average Income by Age Group and Ethnicity") + theme_minimal()
+```
+
+The plot of average income for different age groups shows that Whites and Hispanic age groups between the ages of 21 to 80 earn the highest across all ethnicities, Blacks and Others earn an average of the same amount between the ages of 1 to 60. Hispanics between the ages of 80 to 100 earn the highest amount in that age group. Asians between the ages of 21 to 60 earn the least.
+
+It is important to recall that the Hispanic group is the second smallest group represented in the data. However, Hispanics between the ages of 21 to 80 have the second highest income. Is this a coincidence? or does this suggest a trend, are Hispanics between these age groups more educated?
+
+### Income and Educational Level
+
+```{r}
+# Calculate the average income for each education level and ethnicity
+data_summary <- data %>%
+  filter(!is.na(Highest_Education)) %>% group_by(Highest_Education, Ethnicity) %>%  summarize(AvgIncome = mean(x=Income, na.rm=TRUE))
+
+# Plot the average income by education level
+ggplot(data_summary, aes(x = Highest_Education, y = AvgIncome, color = Ethnicity, group = Ethnicity)) +
+  geom_line() + geom_point() +
+  labs(x = "Highest Education Level", y = "Average Income", title = "Average Income by Education Level and Ethnicity") + theme_minimal()
+```
+
+The plot of income and educational level shows that Asians, Blacks, Hispanics, and Others with less than a secondary school to Some Higher education have less difference in their average income. However, from a bachelor’s degree to a master’s degree, there are some disparities. Asians with a bachelor’s and master’s degree earn an average of nearly the same amount, Hispanics with a master's earn significantly higher than other ethnic groups with a master's degree as well.While Whites with less than a secondary school to bachelor’s level earn the highest amongst all the ethnic groups.
+
+### The Educational Level Distribution in Groups
+
+```{r}
+# Summarize data and calculate proportions by ethnicity and education level and Plot a grouped Bar chart
+data_summary <- data %>% filter(!is.na(Highest_Education)) %>%
+  count(Ethnicity, Highest_Education) %>% group_by(Ethnicity) %>% mutate(Proportion = n / sum(n)) 
+
+ggplot(data_summary, aes(x = Ethnicity, y = Proportion, fill = Highest_Education)) + geom_bar(stat = "identity", position = "fill") +
+  labs(title = "Education Level Distribution Within Each Ethnic Group", x = "Ethnicity",  y = "Percentage of Education Level") + theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format()) + scale_fill_brewer(palette = "Set2") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The distribution of educational levels within each group was calculated as a percentage to account for differences in group population sizes and reduce bias. The plots reveal that Hispanics are more educated; they have the highest percentage of people with a master's and bachelor's degree. Asians have the smallest percentage of people with a master's degree and the highest percentage with less than a secondary school education.
+
+The following are insights from this investigation
+
+-   There is an observed pay disparity between ethnic groups of the same educational level and age groups, as seen in the plot of educational level and income. Whites with the same educational level as other ethnic groups earn significantly more. This points to an ethnic pay gap in varying educational levels, especially between Whites, Hispanics, and every other ethnic group represented.
+
+-   Education and Age are huge factors that affect Ethnic pay gaps (Evans and Office for National Statistics, 2019).
+
+-   Income and educational level have a strong correlation according to the income and educational level plot. The average income for a population with people majorly with less than a secondary school education would be less than the average income for a population with higher educational levels. Asians have the lowest average income and more than 60% of their entire population have less than a secondary school education.
+
+## Conclusion
+
+An observed pay disparity exists among ethnic groups, influenced in part by educational level and age. However, even among groups with similar educational backgrounds, an unexplained income gap persists. As Longhi et al. (2017) note, the unaccounted ethnic pay disparity highlights our lack of understanding of its root causes. For example, Whites and Hispanic ethnic groups with a master's earning more than 20% more than other groups with a master's degree. This gap suggests that structural or unmeasured factors may play a role, warranting further investigation of other factors causing these disparities.
+
+## References
+
+Evans, T. and Office for National Statistics (2019) Ethnicity pay gaps in Great Britain: 2018, Ethnicity Pay Gap Regression Results for 2018 Across Different Ethnicity Breakdowns  Using the Annual Population Survey., \[online\] Available from: https://backup.ons.gov.uk/wp-content/uploads/sites/3/2019/07/Ethnicity-pay-gaps-in-Great-Britain-2018.pdf.
+
+Hui, E. G. M. (2018) O’Reilly Media - Technology and Business Training, O’Reilly Online Learning, \[online\] Available from: https://learning.oreilly.com/library/view/learn-r-for/9781484242001/?sso_link=yes&sso_link_from=university-of-wolverhampton (Accessed 22 October 2024).
+
+Longhi, S., Brynin, M., Equality and Human Rights Commission, and Institute for Social and Economic Research, University of Essex (2017) The ethnicity pay gap, Equality and Human Rights Commission Research Report Series, Equality and Human Rights Commission, \[online\] Available from: https://www.equalityhumanrights.com/sites/default/files/research-report-108-the-ethnicity-pay-gap.pdf (Accessed 5 November 2024).
